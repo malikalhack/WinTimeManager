@@ -19,9 +19,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{51DEB899-1C61-4101-87C5-2B0DA85DDFDE}</ProjectGuid>
+    <ProjectGuid>{BB1CF88E-5EB5-4238-B845-89D93DF0F540}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>Dispatcher</RootNamespace>
+    <RootNamespace>TimeManager</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.10240.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -146,12 +146,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="source\dispatcher.cpp" />
     <ClCompile Include="source\main.cpp" />
+    <ClCompile Include="source\TimeManager.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\dispatcher.h" />
-    <ClInclude Include="include\time_manager.h" />
+    <ClInclude Include="include\TimeManager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

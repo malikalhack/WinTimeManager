@@ -1,60 +1,93 @@
-#include "time_manager.h"
 #include <stdio.h>
-#include <Windows.h>
+#include <functional>
+#include "TimeManager.h"
+#include <chrono>
 
-volatile uint32_t clock_tick;
-HANDLE prcs_blocks[10] = {};
-HANDLE thr;
+enum descriptors {
+    MAIN_THREAD = 0,
+    THREAD_1,
+    THREAD_2,
+    THREAD_3,
+    MAX_DSCR
+};
 
-DWORD WINAPI thread_run(LPVOID mut);
+class TEST {
+public:
+    uint8_t virtual_time;
+
+    TEST();
+    ~TEST();
+    void Sync(uint16_t);
+
+private:
+    TimeManager *TM_;
+
+    void thread_1_thr_func(void);
+    void thread_2_thr_func(void);
+    void thread_3_thr_func(void);
+
+    std::function< void() > f_func_1 = [this]() { this->thread_1_thr_func(); };
+    std::function< void() > f_func_2 = [this]() { this->thread_2_thr_func(); };
+    std::function< void() > f_func_3 = [this]() { this->thread_3_thr_func(); };
+};
 
 int main() {
-	uint8_t timer = 10;
-	D_Reset();
+    uint8_t timer = 10;
+    TEST *test = new TEST;
 
-
-	for (uint8_t i = 0; i < 10; i++) {
-		prcs_blocks[i] = CreateSemaphore(
-			NULL,	// default security attributes
-			0,		// initial count
-			1,		// maximum count
-			NULL	// unnamed semaphore
-		);
-	}
-
-	thr = CreateThread(	// (void *)
-		NULL,				// default security attributes
-		0,					// (unsigned long)	StackSize
-		thread_run,			// Thread function
-		prcs_blocks[0],		// (void *)			Parameter
-		0,					// (unsigned long)	Creation Flags
-		NULL				// (unsigned long*) ThreadId
-	);
-
-	while (timer--) {
-		Sleep(1000); //std::this_thread::sleep_for(std::chrono::seconds(1));
-		printf("Tick #%d\n", ++clock_tick);
-		//Dispatcher();
-		ReleaseSemaphore(prcs_blocks[0], 1, NULL);
-	}
-	printf("Time is up\n");
-	getchar();
-	CloseHandle(thr);
-	for (uint8_t i = 0; i < 10; i++) {
-		CloseHandle(prcs_blocks[i]);
-	}
-
-	return 0;
+    while (timer--) {
+        const uint16_t delay = 1000;
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+        test->Sync(delay);
+    }
+    printf("Time is up\n");
+    getchar();
+    return 0;
 }
 
-DWORD WINAPI thread_run(LPVOID mut) {
-	uint8_t c = 3;
-	DWORD dwWaitResult;
-	while (c--) {
-		printf("wait\n");
-		dwWaitResult = WaitForSingleObject(mut, INFINITE);
-		printf("done\n");
-	}
-	return 0;
+
+TEST::TEST() {
+    virtual_time = 0;
+    TM_ = new TimeManager();
+    TM_->AddPrcs(THREAD_1, f_func_1);
+    TM_->AddPrcs(THREAD_2, f_func_2);
+    TM_->AddPrcs(THREAD_3, f_func_3);
 }
 
+TEST::~TEST() {
+    TM_->KillPrcs(THREAD_1);
+    TM_->KillPrcs(THREAD_2);
+    TM_->KillPrcs(THREAD_3);
+    delete TM_;
+}
+
+void TEST::Sync(uint16_t elapsed_time) {
+    printf("Synchronization! Virtual time equals %d\n", ++virtual_time);
+#if SYNC == TICKS
+    TM_->Sync();
+#elif SYNC == SECONDS
+    TM_->Sync(elapsed_time);
+#else
+    #error NOT implemented
+#endif // SYNC
+}
+
+void TEST::thread_1_thr_func( ) {
+    printf("THR_1: Wait 1 sec\n");
+    this->TM_->wait_in_ticks(1);
+    printf("THR_1: Wait 6 sec\n");
+    this->TM_->wait_in_ticks(6);
+    printf("THR_1: Finish\n");
+}
+
+void TEST::thread_2_thr_func() {
+    printf("THR_2: Wait 5 sec\n");
+    this->TM_->wait_in_ticks(5);
+    printf("THR_2: Finish\n");
+}
+
+void TEST::thread_3_thr_func() {
+    printf("THR_3: Wait 9 sec\n");
+    this->TM_->wait_in_ticks(9);
+    printf("THR_3: Finish\n");
+}
