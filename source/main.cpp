@@ -13,11 +13,12 @@ enum descriptors {
 
 class TEST {
 public:
-    uint8_t virtual_time;
+    uint32_t virtual_time;
+    uint8_t virtual_seconds;
 
     TEST();
     ~TEST();
-    void Sync(uint16_t);
+    void Sync(uint32_t);
 
 private:
     TimeManager *TM_;
@@ -32,13 +33,22 @@ private:
 };
 
 int main() {
-    uint8_t timer = 10;
+    uint8_t timer = 10; //in seconds
     TEST *test = new TEST;
 
     while (timer--) {
+#if SYNC == TICKS
+        for (uint8_t i = 0; i < TICKS_PER_SECOND; i++) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(MILLISECONDS_PER_TICK)); 
+            test->Sync(MILLISECONDS_PER_TICK);
+        }
+#elif SYNC == MILLISECONDS
         const uint16_t delay = 1000;
         std::this_thread::sleep_for(std::chrono::milliseconds(delay));
         test->Sync(delay);
+#else
+    #error Type of synchronization is unknown
+#endif // SYNC
     }
     printf("Time is up\n");
     getchar();
@@ -48,6 +58,7 @@ int main() {
 
 TEST::TEST() {
     virtual_time = 0;
+    virtual_seconds = 0;
     TM_ = new TimeManager();
     TM_->AddPrcs(THREAD_1, f_func_1);
     TM_->AddPrcs(THREAD_2, f_func_2);
@@ -61,33 +72,40 @@ TEST::~TEST() {
     delete TM_;
 }
 
-void TEST::Sync(uint16_t elapsed_time) {
-    printf("Synchronization! Virtual time equals %d\n", ++virtual_time);
+void TEST::Sync(uint32_t elapsed_time) {
 #if SYNC == TICKS
+    virtual_time += elapsed_time;
+    while (virtual_time >= 1000u) {
+        virtual_time -= 1000u;
+        printf("Synchronization! Virtual time equals %d\n", ++virtual_seconds);
+    }
     TM_->Sync();
-#elif SYNC == SECONDS
+#elif SYNC == MILLISECONDS
+    printf("Synchronization! Virtual time equals %d\n", ++virtual_seconds);
     TM_->Sync(elapsed_time);
 #else
-    #error NOT implemented
+    #error Type of synchronization is unknown
 #endif // SYNC
 }
 
 void TEST::thread_1_thr_func( ) {
     printf("THR_1: Wait 1 sec\n");
-    this->TM_->wait_in_ticks(1);
+    this->TM_->wait_in_ticks(1 * TICKS_PER_SECOND);
     printf("THR_1: Wait 6 sec\n");
-    this->TM_->wait_in_ticks(6);
+    this->TM_->wait_in_ticks(6 * TICKS_PER_SECOND);
     printf("THR_1: Finish\n");
 }
 
 void TEST::thread_2_thr_func() {
     printf("THR_2: Wait 5 sec\n");
-    this->TM_->wait_in_ticks(5);
+    this->TM_->wait_in_ticks(5 * TICKS_PER_SECOND);
+    printf("THR_2: Wait 3 sec\n");
+    this->TM_->wait_in_ticks(3 * TICKS_PER_SECOND);
     printf("THR_2: Finish\n");
 }
 
 void TEST::thread_3_thr_func() {
     printf("THR_3: Wait 9 sec\n");
-    this->TM_->wait_in_ticks(9);
+    this->TM_->wait_in_ticks(9 * TICKS_PER_SECOND);
     printf("THR_3: Finish\n");
 }

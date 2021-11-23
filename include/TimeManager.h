@@ -14,16 +14,18 @@
 #include <thread>
 #include <functional>
 /******************************** Definition **********************************/
-#define TICKS   0
-#define SECONDS 1
-#define SYNC TICKS
-#define BUF_SIZE 16
+#define BUF_SIZE                16u
+#define MILLISECONDS_PER_TICK   10u
+#define TICKS_PER_SECOND        1000u / MILLISECONDS_PER_TICK
+#define TICKS                   0u
+#define MILLISECONDS            1u
+#define SYNC                    TICKS
 
 typedef void* semaphore_t;
 
 struct delay_t {
-    uint16_t cur_time;
-    uint16_t wait_time;
+    uint32_t cur_time;
+    uint32_t wait_time;
     bool is_blocked;
 };
 
@@ -45,7 +47,7 @@ public:
  @fn void TimeManager::Sync()
  */
     void Sync();
-#elif SYNC == SECONDS
+#elif SYNC == MILLISECONDS
 /**
  @brief Synchronization function
  @fn void TimeManager::Sync(uint32_t elapsed_time)
@@ -53,7 +55,7 @@ public:
  */
     void Sync(uint32_t);
 #else
-    #error NOT implemented
+    #error Type of synchronization is unknown
 #endif // SYNC
 
 /**
