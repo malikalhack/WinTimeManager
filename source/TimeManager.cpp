@@ -1,9 +1,9 @@
 ﻿/**
  * @file    TimeManager.cpp
- * @version 1.0.0
+ * @version 2.0.0
  * @authors Anton Chernov
  * @date    19/10/2021
- * @date    03/11/2021
+ * @date    23/11/2021
  */
 
 /****************************** Included files ********************************/
@@ -11,14 +11,17 @@
 #include <Windows.h>
 #include "TimeManager.h"
 /******************************************************************************/
+static CRITICAL_SECTION  list_access_;     ///< Exclusive access to the list
+static CRITICAL_SECTION  sync_tick_access_;///< Exclusive access to the sync counter
+
 TimeManager::TimeManager() {
     cancel_ = false;
     sync_tick_ = 0;
     Init_();
-    list_access_ = CreateBinSemaphore_();
-    sync_tick_access_ = CreateBinSemaphore_();
+    InitializeCriticalSectionAndSpinCount(&list_access_, 1024);
+    InitializeCriticalSectionAndSpinCount(&sync_tick_access_, 1024);
     for (uint8_t i = 0; i < BUF_SIZE; i++) {
-        prcs_blocks_[i] = CreateBinSemaphore_(true);
+        prcs_blocks_[i] = CreateTmEvent_();
     }
 }
 /*----------------------------------------------------------------------------*/
@@ -28,17 +31,17 @@ TimeManager::~TimeManager() {
     for (uint8_t i = 0; i < BUF_SIZE; i++) {
         CloseHandle(prcs_blocks_[i]);
     }
-    CloseHandle(list_access_);
-    CloseHandle(sync_tick_access_);
+    DeleteCriticalSection(&list_access_);
+    DeleteCriticalSection(&sync_tick_access_);
 }
 /*----------------------------------------------------------------------------*/
 #if SYNC == TICKS
     void TimeManager::Sync() {
-        WaitForSingleObject(sync_tick_access_, INFINITE);
+        EnterCriticalSection(&sync_tick_access_);
         uint16_t curr_time = ++sync_tick_;
 #elif SYNC == MILLISECONDS
     void TimeManager::Sync(uint32_t elapsed_time) {
-        WaitForSingleObject(sync_tick_access_, INFINITE);
+        EnterCriticalSection(&sync_tick_access_);
         {
             uint32_t remainder = UINT32_MAX - sync_tick_;
             if (elapsed_time >= remainder) {
@@ -53,18 +56,18 @@ TimeManager::~TimeManager() {
 #else
     #error Type of synchronization is unknown
 #endif // SYNC
-        ReleaseSemaphore(sync_tick_access_, 1, NULL);
+        LeaveCriticalSection(&sync_tick_access_);
         for (uint8_t i = 0; i < BUF_SIZE; i++) {
             if (prcs_list_[i].delay.is_blocked) {
                 if (curr_time > prcs_list_[i].delay.cur_time) {
                     if (curr_time - prcs_list_[i].delay.cur_time >= prcs_list_[i].delay.wait_time) {
-                        ReleaseSemaphore(prcs_blocks_[i], 1, NULL);
+                        SetEvent(prcs_blocks_[i]);
                     }
                 }
                 else {
                     uint32_t res = UINT32_MAX - prcs_list_[i].delay.cur_time + prcs_list_[i].delay.cur_time;
                     if (res >= prcs_list_[i].delay.wait_time) {
-                        ReleaseSemaphore(prcs_blocks_[i], 1, NULL);
+                        SetEvent(prcs_blocks_[i]);
                     }
                 }
             }
@@ -72,9 +75,9 @@ TimeManager::~TimeManager() {
     }
 /*----------------------------------------------------------------------------*/
 uint16_t TimeManager::get_time_() {
-    WaitForSingleObject(sync_tick_access_, INFINITE);
+    EnterCriticalSection(&sync_tick_access_);
     uint16_t result = sync_tick_;
-    ReleaseSemaphore(sync_tick_access_, 1, NULL);
+    LeaveCriticalSection(&sync_tick_access_);
     return result;
 }
 /*----------------------------------------------------------------------------*/
@@ -93,9 +96,9 @@ uint8_t TimeManager::get_dscr_(std::thread::id id) {
 }
 /*----------------------------------------------------------------------------*/
 std::thread::id TimeManager::GetPrcsId(uint8_t dscr) {
-    WaitForSingleObject(list_access_, INFINITE);
+    EnterCriticalSection(&list_access_);
     std::thread::id result = prcs_list_[dscr].id;
-    ReleaseSemaphore(list_access_, 1, NULL);
+    LeaveCriticalSection(&list_access_);
     return result;
 }
 /*----------------------------------------------------------------------------*/
@@ -131,6 +134,7 @@ void TimeManager::wait_in_ticks(uint32_t delay) {
                 printf("Error! Unknown result\n");
         }
     } while (repeat && !cancel_);
+    //ResetEvent(prcs_blocks_[dscr]);
     prcs_list_[dscr].delay.is_blocked = false;
 }
 /*----------------------------------------------------------------------------*/
@@ -143,22 +147,21 @@ void TimeManager::Init_() {
     }
 }
 /*----------------------------------------------------------------------------*/
-semaphore_t TimeManager::CreateBinSemaphore_(bool blocked) {
-    uint8_t INITIAL_COUNT = (blocked) ? 0 : 1;
-    semaphore_t link = CreateSemaphore(
-        NULL,           // default security attributes
-        INITIAL_COUNT,  // initial count
-        1,              // maximum count
-        NULL            // unnamed semaphore
+event_t TimeManager::CreateTmEvent_() {
+    event_t link = CreateEvent(
+        NULL,   // default security attributes
+        FALSE,  // manual-reset event
+        FALSE,  // initial state is nonsignaled
+        NULL    // unnamed semaphore
     );
-    if (link == NULL) printf("Error create semaphore\n");
+    if (link == NULL) printf("Error create event\n");
     return link;
 }
 /*----------------------------------------------------------------------------*/
 bool TimeManager::AddPrcs(uint8_t dscr,  std::function<void()> func) {
     bool result = false;
     if (dscr) {
-        WaitForSingleObject(list_access_, INFINITE);
+        EnterCriticalSection(&list_access_);
         if (dscr < BUF_SIZE - 1) {
             prcs_list_[dscr].thr = std::thread(func);
             prcs_id_[dscr] = prcs_list_[dscr].thr.get_id();
@@ -166,7 +169,7 @@ bool TimeManager::AddPrcs(uint8_t dscr,  std::function<void()> func) {
         } else {
             printf("There are no room here\n");
         }
-        ReleaseSemaphore(list_access_, 1, NULL);
+        LeaveCriticalSection(&list_access_);
     } else {
         printf("Reserved by main thread\n");
     }
@@ -174,7 +177,7 @@ bool TimeManager::AddPrcs(uint8_t dscr,  std::function<void()> func) {
 }
 /*----------------------------------------------------------------------------*/
 void TimeManager::KillPrcs(uint8_t dscr, bool force) {
-    WaitForSingleObject(list_access_, INFINITE);
+    EnterCriticalSection(&list_access_);
     cancel_ = true;
     if (force) {
         prcs_list_[dscr].thr.detach();
@@ -182,6 +185,6 @@ void TimeManager::KillPrcs(uint8_t dscr, bool force) {
     else {
         prcs_list_[dscr].thr.join();
     }
-    ReleaseSemaphore(list_access_, 1, NULL);
+    LeaveCriticalSection(&list_access_);
 }
 /******************************************************************************/

@@ -1,9 +1,9 @@
 /**
  * @file    TimeManager.h
- * @version 1.0.0
+ * @version 2.0.0
  * @authors Anton Chernov
  * @date    19/10/2021
- * @date    03/11/2021
+ * @date    23/11/2021
  */
 
 #ifndef TIME_MANAGER_H
@@ -19,9 +19,9 @@
 #define TICKS_PER_SECOND        1000u / MILLISECONDS_PER_TICK
 #define TICKS                   0u
 #define MILLISECONDS            1u
-#define SYNC                    TICKS
+#define SYNC                    MILLISECONDS
 
-typedef void* semaphore_t;
+typedef void* event_t;
 
 struct delay_t {
     uint32_t cur_time;
@@ -89,17 +89,15 @@ public:
     std::thread::id GetPrcsId(uint8_t);
 
 private:
-    volatile uint32_t sync_tick_;   ///< Sync counter
-    bool cancel_;                   ///< Cancel waiting for a sync object
-    semaphore_t list_access_;       ///< Exclusive access to the list
-    semaphore_t sync_tick_access_;  ///< Exclusive access to the sync counter
+    volatile uint32_t sync_tick_;       ///< Sync counter
+    bool cancel_;                       ///< Cancel waiting for a sync object
 
     prcs prcs_list_[BUF_SIZE];          ///< Array of process objects
-    semaphore_t prcs_blocks_[BUF_SIZE]; ///< Array of synchronization objects
+    event_t prcs_blocks_[BUF_SIZE];     ///< Array of synchronization objects
     std::thread::id prcs_id_[BUF_SIZE]; ///< Array of process IDs
 
     void Init_();
-    semaphore_t CreateBinSemaphore_(bool blocked = false);
+    event_t CreateTmEvent_();
     uint8_t get_dscr_(std::thread::id);
     uint16_t get_time_();
 };
