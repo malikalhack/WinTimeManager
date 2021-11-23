@@ -1,7 +1,16 @@
-﻿#include <stdio.h>
+﻿/**
+ * @file    TimeManager.cpp
+ * @version 1.0.0
+ * @authors Anton Chernov
+ * @date    19/10/2021
+ * @date    03/11/2021
+ */
+
+/****************************** Included files ********************************/
+#include <stdio.h>
 #include <Windows.h>
 #include "TimeManager.h"
-
+/******************************************************************************/
 TimeManager::TimeManager() {
     cancel_ = false;
     sync_tick_ = 0;
@@ -12,7 +21,7 @@ TimeManager::TimeManager() {
         prcs_blocks_[i] = CreateBinSemaphore_(true);
     }
 }
-
+/*----------------------------------------------------------------------------*/
 TimeManager::~TimeManager() {
     cancel_ = true;
     Sleep(600);
@@ -22,7 +31,7 @@ TimeManager::~TimeManager() {
     CloseHandle(list_access_);
     CloseHandle(sync_tick_access_);
 }
-
+/*----------------------------------------------------------------------------*/
 #if SYNC == TICKS
     void TimeManager::Sync() {
         WaitForSingleObject(sync_tick_access_, INFINITE);
@@ -61,14 +70,14 @@ TimeManager::~TimeManager() {
             }
         }
     }
-
+/*----------------------------------------------------------------------------*/
 uint16_t TimeManager::get_time_() {
     WaitForSingleObject(sync_tick_access_, INFINITE);
     uint16_t result = sync_tick_;
     ReleaseSemaphore(sync_tick_access_, 1, NULL);
     return result;
 }
-
+/*----------------------------------------------------------------------------*/
 uint8_t TimeManager::get_dscr_(std::thread::id id) {
     uint8_t result = 0;
     bool found = false;
@@ -82,14 +91,14 @@ uint8_t TimeManager::get_dscr_(std::thread::id id) {
     if (!found) printf("No identifier found.\n");
     return result;
 }
-
+/*----------------------------------------------------------------------------*/
 std::thread::id TimeManager::GetPrcsId(uint8_t dscr) {
     WaitForSingleObject(list_access_, INFINITE);
     std::thread::id result = prcs_list_[dscr].id;
     ReleaseSemaphore(list_access_, 1, NULL);
     return result;
 }
-
+/*----------------------------------------------------------------------------*/
 void TimeManager::wait_in_ticks(uint32_t delay) {
     bool repeat = true;
     DWORD dwWaitResult;
@@ -118,14 +127,14 @@ void TimeManager::wait_in_ticks(uint32_t delay) {
     } while (repeat && !cancel_);
     prcs_list_[dscr].delay.is_blocked = false;
 }
-
+/*----------------------------------------------------------------------------*/
 void TimeManager::Init_() {
     prcs_id_[0] = std::this_thread::get_id();
     for (uint8_t index = 0; index < BUF_SIZE; index++) {
         prcs_list_[index].delay.is_blocked = true;
     }
 }
-
+/*----------------------------------------------------------------------------*/
 semaphore_t TimeManager::CreateBinSemaphore_(bool blocked) {
     uint8_t initial_count = (blocked) ? 0 : 1;
     semaphore_t link = CreateSemaphore(
@@ -137,7 +146,7 @@ semaphore_t TimeManager::CreateBinSemaphore_(bool blocked) {
     if (link == NULL) printf("Error create semaphore\n");
     return link;
 }
-
+/*----------------------------------------------------------------------------*/
 bool TimeManager::AddPrcs(uint8_t dscr,  std::function<void()> func) {
     bool result = false;
     if (dscr) {
@@ -155,7 +164,7 @@ bool TimeManager::AddPrcs(uint8_t dscr,  std::function<void()> func) {
     }
     return result;
 }
-
+/*----------------------------------------------------------------------------*/
 void TimeManager::KillPrcs(uint8_t dscr, bool force) {
     WaitForSingleObject(list_access_, INFINITE);
     cancel_ = true;
@@ -167,3 +176,4 @@ void TimeManager::KillPrcs(uint8_t dscr, bool force) {
     }
     ReleaseSemaphore(list_access_, 1, NULL);
 }
+/******************************************************************************/
