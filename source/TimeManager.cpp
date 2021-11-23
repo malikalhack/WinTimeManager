@@ -36,11 +36,11 @@ TimeManager::~TimeManager() {
     void TimeManager::Sync() {
         WaitForSingleObject(sync_tick_access_, INFINITE);
         uint16_t curr_time = ++sync_tick_;
-#elif SYNC == SECONDS
+#elif SYNC == MILLISECONDS
     void TimeManager::Sync(uint32_t elapsed_time) {
-        sync_tick_access.lock();
+        WaitForSingleObject(sync_tick_access_, INFINITE);
         {
-            uint16_t remainder = UINT16_MAX - sync_tick_;
+            uint32_t remainder = UINT32_MAX - sync_tick_;
             if (elapsed_time >= remainder) {
                 elapsed_time -= remainder;
                 sync_tick_ = elapsed_time;
@@ -49,9 +49,9 @@ TimeManager::~TimeManager() {
                 sync_tick_ += elapsed_time;
             }
         }
-        uint16_t curr_time = sync_tick_;
+        uint32_t curr_time = sync_tick_;
 #else
-    #error NOT implemented
+    #error Type of synchronization is unknown
 #endif // SYNC
         ReleaseSemaphore(sync_tick_access_, 1, NULL);
         for (uint8_t i = 0; i < BUF_SIZE; i++) {
@@ -62,7 +62,7 @@ TimeManager::~TimeManager() {
                     }
                 }
                 else {
-                    uint16_t res = UINT32_MAX - prcs_list_[i].delay.cur_time + prcs_list_[i].delay.cur_time;
+                    uint32_t res = UINT32_MAX - prcs_list_[i].delay.cur_time + prcs_list_[i].delay.cur_time;
                     if (res >= prcs_list_[i].delay.wait_time) {
                         ReleaseSemaphore(prcs_blocks_[i], 1, NULL);
                     }
@@ -106,7 +106,13 @@ void TimeManager::wait_in_ticks(uint32_t delay) {
     uint8_t dscr = get_dscr_(std::this_thread::get_id());
 
     prcs_list_[dscr].delay.cur_time = cur_time;
+#if SYNC == TICKS
     prcs_list_[dscr].delay.wait_time = delay;
+#elif SYNC == MILLISECONDS
+    prcs_list_[dscr].delay.wait_time = delay * MILLISECONDS_PER_TICK;
+#else
+    #error Type of synchronization is unknown
+#endif // SYNC
     prcs_list_[dscr].delay.is_blocked = true;
     do {
         dwWaitResult = WaitForSingleObject(
@@ -131,17 +137,19 @@ void TimeManager::wait_in_ticks(uint32_t delay) {
 void TimeManager::Init_() {
     prcs_id_[0] = std::this_thread::get_id();
     for (uint8_t index = 0; index < BUF_SIZE; index++) {
-        prcs_list_[index].delay.is_blocked = true;
+        prcs_list_[index].delay.cur_time = 0u;
+        prcs_list_[index].delay.wait_time = 0u;
+        prcs_list_[index].delay.is_blocked = false;
     }
 }
 /*----------------------------------------------------------------------------*/
 semaphore_t TimeManager::CreateBinSemaphore_(bool blocked) {
-    uint8_t initial_count = (blocked) ? 0 : 1;
+    uint8_t INITIAL_COUNT = (blocked) ? 0 : 1;
     semaphore_t link = CreateSemaphore(
-        NULL,   // default security attributes
-        initial_count,
-        1,      // maximum count
-        NULL    // unnamed semaphore
+        NULL,           // default security attributes
+        INITIAL_COUNT,  // initial count
+        1,              // maximum count
+        NULL            // unnamed semaphore
     );
     if (link == NULL) printf("Error create semaphore\n");
     return link;
