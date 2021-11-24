@@ -3,7 +3,7 @@
  * @version 2.0.0
  * @authors Anton Chernov
  * @date    19/10/2021
- * @date    23/11/2021
+ * @date    24/11/2021
  */
 
 /****************************** Included files ********************************/
@@ -20,6 +20,7 @@ TimeManager::TimeManager() {
     Init_();
     InitializeCriticalSectionAndSpinCount(&list_access_, 1024);
     InitializeCriticalSectionAndSpinCount(&sync_tick_access_, 1024);
+    start_allowed_ = CreateTmEvent_();
     for (uint8_t i = 0; i < BUF_SIZE; i++) {
         prcs_blocks_[i] = CreateTmEvent_();
     }
@@ -28,8 +29,9 @@ TimeManager::TimeManager() {
 TimeManager::~TimeManager() {
     cancel_ = true;
     Sleep(600);
+    CloseTmEvent_(start_allowed_);
     for (uint8_t i = 0; i < BUF_SIZE; i++) {
-        CloseHandle(prcs_blocks_[i]);
+        CloseTmEvent_(prcs_blocks_[i]);
     }
     DeleteCriticalSection(&list_access_);
     DeleteCriticalSection(&sync_tick_access_);
@@ -102,6 +104,10 @@ std::thread::id TimeManager::GetPrcsId(uint8_t dscr) {
     return result;
 }
 /*----------------------------------------------------------------------------*/
+void TimeManager::wait_for_start() {
+    WaitForSingleObject(start_allowed_, INFINITE);
+}
+/*----------------------------------------------------------------------------*/
 void TimeManager::wait_in_ticks(uint32_t delay) {
     bool repeat = true;
     DWORD dwWaitResult;
@@ -134,7 +140,6 @@ void TimeManager::wait_in_ticks(uint32_t delay) {
                 printf("Error! Unknown result\n");
         }
     } while (repeat && !cancel_);
-    //ResetEvent(prcs_blocks_[dscr]);
     prcs_list_[dscr].delay.is_blocked = false;
 }
 /*----------------------------------------------------------------------------*/
@@ -150,12 +155,16 @@ void TimeManager::Init_() {
 event_t TimeManager::CreateTmEvent_() {
     event_t link = CreateEvent(
         NULL,   // default security attributes
-        FALSE,  // manual-reset event
+        FALSE,  // auto-reset event
         FALSE,  // initial state is nonsignaled
-        NULL    // unnamed semaphore
+        NULL    // unnamed event
     );
     if (link == NULL) printf("Error create event\n");
     return link;
+}
+/*----------------------------------------------------------------------------*/
+void TimeManager::CloseTmEvent_(event_t evt) {
+    CloseHandle(evt);
 }
 /*----------------------------------------------------------------------------*/
 bool TimeManager::AddPrcs(uint8_t dscr,  std::function<void()> func) {
@@ -166,6 +175,7 @@ bool TimeManager::AddPrcs(uint8_t dscr,  std::function<void()> func) {
             prcs_list_[dscr].thr = std::thread(func);
             prcs_id_[dscr] = prcs_list_[dscr].thr.get_id();
             result = true;
+            SetEvent(start_allowed_);
         } else {
             printf("There are no room here\n");
         }

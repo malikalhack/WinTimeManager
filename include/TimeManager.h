@@ -3,7 +3,7 @@
  * @version 2.0.0
  * @authors Anton Chernov
  * @date    19/10/2021
- * @date    23/11/2021
+ * @date    24/11/2021
  */
 
 #ifndef TIME_MANAGER_H
@@ -59,6 +59,12 @@ public:
 #endif // SYNC
 
 /**
+ * @brief Public method to suspend execution of a thread until its ID is obtained
+ * @fn void TimeManager::wait_for_start()
+ */
+    void wait_for_start();
+
+/**
  * @brief Public method to stop a thread and waiting for the counter
  * @fn void TimeManager::wait_in_ticks(uint32_t delay)
  * @param[in] delay time to sleep (in ticks)
@@ -91,12 +97,14 @@ public:
 private:
     volatile uint32_t sync_tick_;       ///< Sync counter
     bool cancel_;                       ///< Cancel waiting for a sync object
+    event_t start_allowed_;             ///< Event to start the thread
 
     prcs prcs_list_[BUF_SIZE];          ///< Array of process objects
     event_t prcs_blocks_[BUF_SIZE];     ///< Array of synchronization objects
     std::thread::id prcs_id_[BUF_SIZE]; ///< Array of process IDs
 
     void Init_();
+    void CloseTmEvent_(event_t);
     event_t CreateTmEvent_();
     uint8_t get_dscr_(std::thread::id);
     uint16_t get_time_();

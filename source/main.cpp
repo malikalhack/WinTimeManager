@@ -89,6 +89,7 @@ void TEST::Sync(uint32_t elapsed_time) {
 }
 
 void TEST::thread_1_thr_func( ) {
+    this->TM_->wait_for_start();
     printf("THR_1: Wait 1 sec\n");
     this->TM_->wait_in_ticks(1 * TICKS_PER_SECOND);
     printf("THR_1: Wait 6 sec\n");
@@ -97,6 +98,7 @@ void TEST::thread_1_thr_func( ) {
 }
 
 void TEST::thread_2_thr_func() {
+    this->TM_->wait_for_start();
     printf("THR_2: Wait 5 sec\n");
     this->TM_->wait_in_ticks(5 * TICKS_PER_SECOND);
     printf("THR_2: Wait 3 sec\n");
@@ -105,6 +107,7 @@ void TEST::thread_2_thr_func() {
 }
 
 void TEST::thread_3_thr_func() {
+    this->TM_->wait_for_start();
     printf("THR_3: Wait 9 sec\n");
     this->TM_->wait_in_ticks(9 * TICKS_PER_SECOND);
     printf("THR_3: Finish\n");
