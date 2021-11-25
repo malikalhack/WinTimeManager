@@ -172,9 +172,10 @@ bool TimeManager::AddPrcs(uint8_t dscr,  std::function<void()> func) {
     if (dscr) {
         EnterCriticalSection(&list_access_);
         if (dscr < BUF_SIZE - 1) {
+            ResetEvent(start_allowed_);
+            result = true;
             prcs_list_[dscr].thr = std::thread(func);
             prcs_id_[dscr] = prcs_list_[dscr].thr.get_id();
-            result = true;
             SetEvent(start_allowed_);
         } else {
             printf("There are no room here\n");
