@@ -105,7 +105,7 @@ private:
 
     void Init_();
     void CloseTmEvent_(event_t);
-    event_t CreateTmEvent_();
+    event_t CreateTmEvent_(const wchar_t* name = NULL);
     uint8_t get_dscr_(std::thread::id);
     uint16_t get_time_();
 };

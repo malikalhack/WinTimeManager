@@ -20,7 +20,7 @@ TimeManager::TimeManager() {
     Init_();
     InitializeCriticalSectionAndSpinCount(&list_access_, 1024);
     InitializeCriticalSectionAndSpinCount(&sync_tick_access_, 1024);
-    start_allowed_ = CreateTmEvent_();
+    start_allowed_ = CreateTmEvent_(L"Start");
     for (uint8_t i = 0; i < BUF_SIZE; i++) {
         prcs_blocks_[i] = CreateTmEvent_();
     }
@@ -152,12 +152,12 @@ void TimeManager::Init_() {
     }
 }
 /*----------------------------------------------------------------------------*/
-event_t TimeManager::CreateTmEvent_() {
+event_t TimeManager::CreateTmEvent_(const wchar_t * name) {
     event_t link = CreateEvent(
         NULL,   // default security attributes
         FALSE,  // auto-reset event
         FALSE,  // initial state is nonsignaled
-        NULL    // unnamed event
+        name    // name of event
     );
     if (link == NULL) printf("Error create event\n");
     return link;
