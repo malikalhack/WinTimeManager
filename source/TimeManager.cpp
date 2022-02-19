@@ -20,9 +20,9 @@ TimeManager::TimeManager() {
     Init_();
     InitializeCriticalSectionAndSpinCount(&list_access_, 1024);
     InitializeCriticalSectionAndSpinCount(&sync_tick_access_, 1024);
-    start_allowed_ = CreateTmEvent_();
+    start_allowed_ = CreateTmEvent_(L"Start");
     for (uint8_t i = 0; i < BUF_SIZE; i++) {
-        prcs_blocks_[i] = CreateTmEvent_();
+        prcs_blocks_[i] = CreateTmEvent_(name_expander_(L"Event", i));
     }
 }
 /*----------------------------------------------------------------------------*/
@@ -152,12 +152,12 @@ void TimeManager::Init_() {
     }
 }
 /*----------------------------------------------------------------------------*/
-event_t TimeManager::CreateTmEvent_() {
+event_t TimeManager::CreateTmEvent_(const wchar_t * name) {
     event_t link = CreateEvent(
         NULL,   // default security attributes
         FALSE,  // auto-reset event
         FALSE,  // initial state is nonsignaled
-        NULL    // unnamed event
+        name    // name of event
     );
     if (link == NULL) printf("Error create event\n");
     return link;
@@ -197,5 +197,15 @@ void TimeManager::KillPrcs(uint8_t dscr, bool force) {
         prcs_list_[dscr].thr.join();
     }
     LeaveCriticalSection(&list_access_);
+}
+/*----------------------------------------------------------------------------*/
+const wchar_t* TimeManager::name_expander_(const wchar_t *name, uint16_t i) {
+    temp_event_name.clear();
+    temp_event_name.append(name);
+    temp_event_name.push_back('_');
+    wchar_t char_count[6];
+    _itow(i, char_count, 10);
+    temp_event_name.append(char_count);
+    return temp_event_name.c_str();
 }
 /******************************************************************************/

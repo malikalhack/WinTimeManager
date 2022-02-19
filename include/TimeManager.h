@@ -102,10 +102,12 @@ private:
     prcs prcs_list_[BUF_SIZE];          ///< Array of process objects
     event_t prcs_blocks_[BUF_SIZE];     ///< Array of synchronization objects
     std::thread::id prcs_id_[BUF_SIZE]; ///< Array of process IDs
+    std::wstring temp_event_name;
 
     void Init_();
     void CloseTmEvent_(event_t);
-    event_t CreateTmEvent_();
+    const wchar_t* name_expander_(const wchar_t *, uint16_t);
+    event_t CreateTmEvent_(const wchar_t* name = NULL);
     uint8_t get_dscr_(std::thread::id);
     uint16_t get_time_();
 };
